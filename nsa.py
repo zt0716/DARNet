@@ -49,7 +49,7 @@ class NativeSparseAttention(nn.Module):
         k_window = k[:, :, -self.win_size:]  # Take the last win_size tokens
         v_window = v[:, :, -self.win_size:]
         attn_window = self._scaled_dot_product_attention(q, k_window, v_window)
-        
+
         # Combine attention outputs using gating mechanism
         gate_weights = self.gate(q)
         attn_output = gate_weights[:, :, :, 0].unsqueeze(-1) * attn_compressed + \
@@ -140,7 +140,7 @@ class GatedMLP(nn.Module):
 
 class NSABlock(nn.Module):
     def __init__(self, embed_dim=512, num_heads=8, comp_block=32, sel_block=32, win_size=512,
-                 eps=1e-6, 
+                 eps=1e-6,
                  hidden_ratio=4, intermediate_size=None, hidden_act="swish"
                  ):
         super().__init__()
@@ -157,12 +157,12 @@ class NSABlock(nn.Module):
         self.hidden_ratio= hidden_ratio
         self.intermediate_size= intermediate_size
         self.hidden_act= hidden_act
-        
+
         self.attn_norm = nn.RMSNorm(self.embed_dim, self.eps)
         self.attn = NativeSparseAttention(self.embed_dim, self.num_heads, self.comp_block, self.sel_block, self.win_size)
         self.mlp_norm = nn.RMSNorm(self.embed_dim, self.eps)
         self.mlp = GatedMLP(self.embed_dim, self.hidden_ratio, self.intermediate_size, self.hidden_act)   # [embed_dim=820, hidden_ratio=4, intermediate_size=None, hidden_act="swish"]
-    
+
 
     def forward(self, x):
         #采用残差连接
@@ -181,22 +181,10 @@ class NSABlock(nn.Module):
 
 
 if __name__ == '__main__':
-    # test
-    # batch_size = 2
-    # seq_length = 6400
-    # embedding_dim = 2560
-    # num_heads = 8 
-
-    # batch_size = 32
-    # seq_length = 2304
-    # embedding_dim = 150
-    # num_heads = 6
-    # nsa_module = NSABlock(embed_dim=embedding_dim, num_heads=num_heads, comp_block=48, sel_block=48, win_size=512)
-
     batch_size = 64
     seq_length = 14
     embedding_dim = 820
-    num_heads = 20       # embedding_dim 和 num_heads一定要能整除
+    num_heads = 20
 
     input_tensor = torch.randn(batch_size, seq_length, embedding_dim)   # (64, 14, 820)
     print(f"Input shape: {input_tensor.shape}")

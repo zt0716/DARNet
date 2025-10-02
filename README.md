@@ -1,0 +1,1 @@
+This is the open-source code for the paper “DARNet: Deep Attention Receiver Network for 5G.” Currently, it only includes the NSA attention module and the dataset preparation method. If the paper is successfully published in the future, the code will be completed.
