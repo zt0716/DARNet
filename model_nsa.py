@@ -41,8 +41,8 @@ def get_config():
 
     return config
 
-
 config = get_config()
+
 
 class Complex_dense(nn.Module):
     def __init__(self, n_sym=14, K=82, m_iq=2, n_sc=82):
@@ -257,6 +257,7 @@ class NSABlock(nn.Module):
 
         return outputs, None
 
+
 class Block(nn.Module):
     def __init__(self, config, vis):
         super(Block, self).__init__()
@@ -432,6 +433,7 @@ class Transition(nn.Module):
         equalized_complex = torch.transpose(output, dim0=3, dim1=2)
         return equalized_complex, chest
 
+
 class Att_cat_channel(nn.Module):
     def __init__(self, filters=1):
         super(Att_cat_channel, self).__init__()
@@ -504,6 +506,7 @@ class Con_cat(nn.Module):
         x = x.permute(0, 3, 2, 1)
         x = torch.cat([x, out_iq], dim=-1)
         return x
+
 
 class DARNet(nn.Module):
     def __init__(self, data_carrier=832, nbits=4):
