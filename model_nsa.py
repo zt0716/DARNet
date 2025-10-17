@@ -85,49 +85,6 @@ class Complex_dense(nn.Module):
         return self.final_norm(x)
 
 
-class FFT(nn.Module):
-    def __init__(self, filters=82, kernal_size=(82, 1, 1), K=82, n_sym=14):
-        super(FFT, self).__init__()
-        self.filters = filters
-        self.kernal_size = kernal_size
-        self.K = K
-        self.n_sym = n_sym
-        self.complex_dense = Complex_dense(n_sym=14, K=82, m_iq=2, n_sc=82)
-        self.relu = nn.ReLU()
-        self.time_to_frequency = nn.Conv3d(in_channels=1,
-                                           out_channels=2*filters,
-                                           kernel_size=kernal_size, stride=(1, 1, 1), padding=0)
-        self.BatchNorm3D = nn.BatchNorm3d(164)
-        self._initialize_weights()
-
-    def _initialize_weights(self):
-        for m in self.modules():
-            if isinstance(m, (nn.Conv3d, nn.Linear)):
-                nn.init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='relu')
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-
-    def forward(self, x):
-        x = self.complex_dense(x)
-        x = torch.transpose(x, dim0=3, dim1=1)
-        x = self.time_to_frequency(x)
-        x = self.BatchNorm3D(x)
-        x = self.relu(x)
-        x = x.permute(0, 3, 2, 4, 1)
-        conv = x
-        shapes_conv = list(Variable(conv).size())
-        conv = torch.reshape(conv, [-1, shapes_conv[1], shapes_conv[2], shapes_conv[3] * 2, self.filters])  #
-        conv_re = conv[:, :, :, 0, :] - conv[:, :, :, 3, :]
-        conv_im = conv[:, :, :, 1, :] - conv[:, :, :, 2, :]
-        conv_re = torch.reshape(conv_re, [-1, shapes_conv[1], shapes_conv[2], 1, self.filters])
-        conv_im = torch.reshape(conv_im, [-1, shapes_conv[1], shapes_conv[2], 1, self.filters])
-        output = torch.cat([conv_re, conv_im], dim=3)
-        output = torch.transpose(output, dim0=4, dim1=3)
-        output = torch.transpose(output, dim0=3, dim1=2)
-        input_complex = torch.complex(output[:, :, :, :, 0], output[:, :, :, :, 1])
-        input_complex = torch.reshape(input_complex, [-1, self.n_sym, self.K, 1])
-        return output, input_complex
-
 class NativeSparseAttention(nn.Module):
     def __init__(self, embed_dim=820, num_heads=20, comp_block=7, sel_block=7, win_size=7):
         super().__init__()
