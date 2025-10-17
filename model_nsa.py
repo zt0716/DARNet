@@ -548,9 +548,9 @@ class Con_cat(nn.Module):
         x = torch.cat([x, out_iq], dim=-1)
         return x
 
-class TWO_DCCN(nn.Module):
+class DARNet(nn.Module):
     def __init__(self, data_carrier=832, nbits=4):
-        super(TWO_DCCN, self).__init__()
+        super(DARNet, self).__init__()
         self.data_carrier = data_carrier
         self.nbits = nbits
         self.concat = Con_cat()
@@ -595,7 +595,7 @@ class TWO_DCCN(nn.Module):
 
 
 # FLOPs and Parameters calculation
-model = TWO_DCCN()
+model = DARNet()
 input = torch.randn(64, 2, 1164, 2)  # Example input tensor
 flops, params = profile(model, inputs=(input,))
 print(f"FLOPs: {flops / 1e9:.2f} G")
