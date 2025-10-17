@@ -3,25 +3,25 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 from typing import Optional
-# (64, 14, 820)-->(64, 820, 14)
+
 class NativeSparseAttention(nn.Module):
-    def __init__(self, embed_dim=800, num_heads=16, comp_block=25, sel_block=25, win_size=200):      # [820, 20, 7, 7, 7]
+    def __init__(self, embed_dim=800, num_heads=16, comp_block=25, sel_block=25, win_size=200):
         super().__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
-        self.head_dim = embed_dim // num_heads  # 820/20=41
+        self.head_dim = embed_dim // num_heads
         self.comp_block = comp_block
         self.sel_block = sel_block
         self.win_size = win_size
 
-        self.q_proj = nn.Linear(embed_dim, embed_dim)   # (800, 800)
+        self.q_proj = nn.Linear(embed_dim, embed_dim)
         self.k_proj = nn.Linear(embed_dim, embed_dim)
         self.v_proj = nn.Linear(embed_dim, embed_dim)
 
         self.comp_mlp = nn.Sequential(
-            nn.Linear(comp_block*self.head_dim, self.head_dim//2),      # (7*41,41/2)=(1250, 25)
+            nn.Linear(comp_block*self.head_dim, self.head_dim//2),
             nn.ReLU(),
-            nn.Linear(self.head_dim//2, self.head_dim)      # (41/2, 41)
+            nn.Linear(self.head_dim//2, self.head_dim)
         )
 
         self.gate = nn.Sequential(
@@ -46,11 +46,11 @@ class NativeSparseAttention(nn.Module):
         attn_selected = self._scaled_dot_product_attention(q, k_selected, v_selected)
 
         # Sliding window attention
-        k_window = k[:, :, -self.win_size:]  # Take the last win_size tokens
+        k_window = k[:, :, -self.win_size:]
         v_window = v[:, :, -self.win_size:]
         attn_window = self._scaled_dot_product_attention(q, k_window, v_window)
 
-        # Combine attention outputs using gating mechanism
+
         gate_weights = self.gate(q)
         attn_output = gate_weights[:, :, :, 0].unsqueeze(-1) * attn_compressed + \
                       gate_weights[:, :, :, 1].unsqueeze(-1) * attn_selected + \
@@ -61,37 +61,37 @@ class NativeSparseAttention(nn.Module):
         return attn_output
 
     def _comp_attn(self, q, k):
-        # Compute attention scores
+
         scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.head_dim)
         attn_weights = F.softmax(scores, dim=-1)
         return attn_weights
 
     def _scaled_dot_product_attention(self, q, k, v):
-        # Compute attention scores
+
         scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.head_dim)
         attn_weights = F.softmax(scores, dim=-1)
         output = torch.matmul(attn_weights, v)
         return output
 
     def _compress(self, x, comp_block):
-        # Compress keys/values by aggregating blocks
+
         B, H, L, E = x.shape
         x_blocks = x.view(B, H, -1, comp_block, E)
         x_compressed = self.comp_mlp(x_blocks.flatten(3))
         return x_compressed
 
     def _select(self, k, v, comp_attn):
-        # Select important blocks based on attention scores
+
         B, H, L, E = k.shape
 
         k_blocks = k.view(B, H, -1, self.sel_block, E)
         v_blocks = v.view(B, H, -1, self.sel_block, E)
 
         block_scores = comp_attn.sum(dim=2)  # B, H, L_compressed
-        topk = min(16, block_scores.shape[-1])  # 动态调整 k
+        topk = min(16, block_scores.shape[-1])
         topk_scores, topk_indices = torch.topk(
             block_scores,
-            k=topk,  # 16
+            k=topk,
             dim=-1
         )
 
@@ -113,7 +113,7 @@ class GatedMLP(nn.Module):
         self.hidden_size = hidden_size
         if intermediate_size is None:
             intermediate_size = int(hidden_size * hidden_ratio * 2 / 3)
-            intermediate_size = 256 * ((intermediate_size + 256 - 1) // 256)  # 256对齐
+            intermediate_size = 256 * ((intermediate_size + 256 - 1) // 256)
 
         self.hidden_ratio = hidden_ratio
         self.intermediate_size = intermediate_size
@@ -121,20 +121,20 @@ class GatedMLP(nn.Module):
         if hidden_act != 'swish':
             raise ValueError(f'Unsupported hidden_act: {hidden_act}')
 
-        # 线性层
+
         self.gate_proj = nn.Linear(hidden_size, intermediate_size, bias=False)
         self.up_proj = nn.Linear(hidden_size, intermediate_size, bias=False)
         self.down_proj = nn.Linear(intermediate_size, hidden_size, bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # 计算门控值和上采样值
+
         gate = self.gate_proj(x)
         y = self.up_proj(x)
 
-        # Swish-Gated Linear Unit: Swish(x) * y
+
         gate = gate * torch.sigmoid(gate)
 
-        # 线性变换回原始维度
+
         return self.down_proj(gate * y)
 
 
@@ -144,16 +144,16 @@ class NSABlock(nn.Module):
                  hidden_ratio=4, intermediate_size=None, hidden_act="swish"
                  ):
         super().__init__()
-        #注意力的参数
-        self.embed_dim = embed_dim              # 820
-        self.num_heads = num_heads              # 20
-        self.head_dim = embed_dim // num_heads      # 820/20=41
-        self.comp_block = comp_block            # 7
-        self.sel_block = sel_block              # 7
-        self.win_size = win_size                # 7
-        #归一化的参数
+
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.head_dim = embed_dim // num_heads
+        self.comp_block = comp_block
+        self.sel_block = sel_block
+        self.win_size = win_size
+
         self.eps =eps
-        #多层感知机的参数
+
         self.hidden_ratio= hidden_ratio
         self.intermediate_size= intermediate_size
         self.hidden_act= hidden_act
@@ -161,11 +161,10 @@ class NSABlock(nn.Module):
         self.attn_norm = nn.RMSNorm(self.embed_dim, self.eps)
         self.attn = NativeSparseAttention(self.embed_dim, self.num_heads, self.comp_block, self.sel_block, self.win_size)
         self.mlp_norm = nn.RMSNorm(self.embed_dim, self.eps)
-        self.mlp = GatedMLP(self.embed_dim, self.hidden_ratio, self.intermediate_size, self.hidden_act)   # [embed_dim=820, hidden_ratio=4, intermediate_size=None, hidden_act="swish"]
+        self.mlp = GatedMLP(self.embed_dim, self.hidden_ratio, self.intermediate_size, self.hidden_act)
 
 
     def forward(self, x):
-        #采用残差连接
         residual = x
 
         x = self.attn_norm(x)
@@ -186,7 +185,7 @@ if __name__ == '__main__':
     embedding_dim = 820
     num_heads = 20
 
-    input_tensor = torch.randn(batch_size, seq_length, embedding_dim)   # (64, 14, 820)
+    input_tensor = torch.randn(batch_size, seq_length, embedding_dim)
     print(f"Input shape: {input_tensor.shape}")
     nsa_module = NSABlock(embed_dim=embedding_dim, num_heads=num_heads, comp_block=7, sel_block=7, win_size=7)
     output = nsa_module(input_tensor)

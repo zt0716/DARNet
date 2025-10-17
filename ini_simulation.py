@@ -230,9 +230,9 @@ class Model(tf.keras.Model):
         self._decoder = LDPC5GDecoder(self._encoder, hard_out=True)
         self._remove_nulled_scs = RemoveNulledSubcarriers(self._rg)
 
-    @tf.function(jit_compile=True)  #
-    def call(self, batch_size, ebno_db):  # ebno_db
-        no = ebnodb2no(ebno_db, self._num_bits_per_symbol, self._coderate, self._rg)  # ebno_db 0
+    @tf.function(jit_compile=True)
+    def call(self, batch_size, ebno_db):
+        no = ebnodb2no(ebno_db, self._num_bits_per_symbol, self._coderate, self._rg)
         b = self._binary_source([batch_size, 1, self._num_streams_per_tx, self._k])
         c = self._encoder(b)
         x = self._mapper(c)
@@ -284,7 +284,7 @@ class Model(tf.keras.Model):
         llr = self._demapper([x_hat, no_eff])
         b_hat = self._decoder(llr)
 
-        return b, y_time  # y_time b_hat
+        return b, y_time
 
 
 
